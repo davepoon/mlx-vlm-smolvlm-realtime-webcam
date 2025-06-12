@@ -519,7 +519,7 @@ HTML_TEMPLATE = """
 """
 
 class MLXSmolVLMWebServer:
-    def __init__(self, model_path: str, host: str = "localhost", port: int = 5000):
+    def __init__(self, model_path: str, host: str = "localhost", port: int = 8080):
         """Initialize the MLX SmolVLM web server."""
         self.model_path = model_path
         self.host = host
@@ -752,8 +752,8 @@ def main():
                        help="Path or HuggingFace model ID for SmolVLM model. Recommended: HuggingFaceTB/SmolVLM-Instruct")
     parser.add_argument("--host", type=str, default="127.0.0.1",
                        help="Host to bind the server (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=5000,
-                       help="Port to bind the server (default: 5000)")
+    parser.add_argument("--port", type=int, default=8080,
+                       help="Port to bind the server (default: 8080)")
     parser.add_argument("--debug", action="store_true",
                        help="Enable debug mode")
     

@@ -88,7 +88,7 @@ python mlx_smolvlm_webcam.py \
 ### Command Line Arguments
 - `--model`: HuggingFace model ID (default: `mlx-community/SmolVLM-Instruct-4bit`)
 - `--host`: Server host (default: `127.0.0.1`)
-- `--port`: Server port (default: `5000`)
+- `--port`: Server port (default: `8080`)
 - `--debug`: Enable debug mode
 
 ## 🎛️ Web Interface Features
@@ -100,9 +100,9 @@ python mlx_smolvlm_webcam.py \
 
 ### Settings Panel
 - **Custom Prompt**: Customize what you want the AI to describe
-- **Max Tokens**: Control response length (10-500)
-- **Temperature**: Adjust creativity/randomness (0.1-2.0)
-- **Auto Analyze**: Automatic analysis every 3/5/10 seconds
+- **Max Tokens**: Control response length (5-50)
+- **Temperature**: Adjust creativity/randomness (0.1-1.0)
+- **Auto Analyze**: Automatic analysis every .5/1/1.5/2/2.5/3/5/10 seconds or Manual
 
 ### Example Prompts
 - "Describe what you see in this image in detail"
