@@ -1,14 +1,4 @@
 #!/usr/bin/env python3
-"""
-MLX-LM version of SmolVLM real-time webcam application with HTML UI.
-Adapted from: https://github.com/ngxson/smolvlm-realtime-webcam
-
-Requirements:
-pip install mlx-vlm flask flask-socketio pillow numpy
-
-Usage:
-python mlx_smolvlm_webcam.py --model mlx-community/SmolVLM-Instruct-4bit
-"""
 
 import argparse
 import base64
@@ -248,6 +238,26 @@ HTML_TEMPLATE = """
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        
+        .analyzing-message {
+            color: #666;
+            padding: 5px 0;
+            border-top: 1px solid #eee;
+            margin-top: 10px;
+            animation: pulse 1.5s ease-in-out infinite;
+            color: #fff;
+        }
+        
+        .previous-response {
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
@@ -283,23 +293,27 @@ HTML_TEMPLATE = """
                 <div class="setting-item">
                     <label for="promptInput">Custom Prompt:</label>
                     <input type="text" id="promptInput" class="prompt-input" 
-                           placeholder="Describe what you see in this image...">
+                           placeholder="Briefly describe what you see...">
                 </div>
                 <div class="setting-item">
                     <label for="maxTokens">Max Tokens:</label>
-                    <input type="number" id="maxTokens" value="100" min="10" max="500">
+                    <input type="number" id="maxTokens" value="30" min="5" max="50">
                 </div>
                 <div class="setting-item">
                     <label for="temperature">Temperature:</label>
-                    <input type="number" id="temperature" value="0.7" min="0.1" max="2.0" step="0.1">
+                    <input type="number" id="temperature" value="0.2" min="0.1" max="1.0" step="0.1">
                 </div>
                 <div class="setting-item">
                     <label for="autoAnalyze">Auto Analyze:</label>
                     <select id="autoAnalyze">
                         <option value="false">Manual</option>
+                        <option value="0.5">Every 0.5 seconds (Ultra Fast)</option>
+                        <option value="1">Every 1 second (Fast)</option>
+                        <option value="1.5">Every 1.5 seconds</option>
+                        <option value="2" selected>Every 2 seconds (Balanced)</option>
                         <option value="3">Every 3 seconds</option>
-                        <option value="5">Every 5 seconds</option>
-                        <option value="10">Every 10 seconds</option>
+                        <option value="5">Every 5 seconds (Slow)</option>
+                        <option value="10">Every 10 seconds (Very Slow)</option>
                     </select>
                 </div>
             </div>
@@ -377,6 +391,11 @@ HTML_TEMPLATE = """
                     this.updateStatus('ready', 'Camera ready');
                     this.clearError();
                     
+                    // Wait for video to be ready, then start auto-analyze if selected
+                    this.video.addEventListener('loadeddata', () => {
+                        this.updateAutoAnalyze(); // Restart auto-analyze now that camera is ready
+                    });
+                    
                 } catch (error) {
                     this.handleError('Failed to access camera: ' + error.message);
                 }
@@ -402,13 +421,20 @@ HTML_TEMPLATE = """
                 }
                 
                 this.isProcessing = true;
-                this.updateStatus('processing', 'Analyzing image...');
+                this.updateStatus('processing', 'Processing...');
                 this.analyzeBtn.disabled = true;
-                this.responseDiv.innerHTML = '<div class="loading"></div> Analyzing...';
                 
-                const prompt = this.promptInput.value.trim() || 'Describe what you see in this image in detail.';
-                const maxTokens = parseInt(this.maxTokensInput.value) || 100;
-                const temperature = parseFloat(this.temperatureInput.value) || 0.7;
+                // Show analyzing message while keeping previous response visible
+                const currentResponse = this.responseDiv.textContent;
+                if (currentResponse) {
+                    this.responseDiv.innerHTML = `<div class="previous-response">${currentResponse}</div><div class="analyzing-message">🔍 Analyzing...</div>`;
+                } else {
+                    this.responseDiv.innerHTML = '<div class="analyzing-message">🔍 Analyzing...</div>';
+                }
+                
+                const prompt = this.promptInput.value.trim() || 'Tell me what you see.';
+                const maxTokens = parseInt(this.maxTokensInput.value) || 30;
+                const temperature = parseFloat(this.temperatureInput.value) || 0.2;
                 
                 this.socket.emit('analyze_frame', {
                     image: frameData,
@@ -453,11 +479,15 @@ HTML_TEMPLATE = """
                 
                 const interval = this.autoAnalyzeSelect.value;
                 if (interval !== 'false') {
+                    const intervalMs = parseFloat(interval) * 1000;
                     this.autoAnalyzeInterval = setInterval(() => {
-                        if (!this.isProcessing && !this.analyzeBtn.disabled) {
+                        // Check if camera is ready and not currently processing
+                        if (!this.isProcessing && this.stream && this.video.readyState >= 2) {
                             this.analyzeFrame();
                         }
-                    }, parseInt(interval) * 1000);
+                    }, intervalMs);
+                    
+                    console.log(`Auto-analyze started: every ${interval} second(s) (${intervalMs}ms)`);
                 }
             }
             
@@ -519,22 +549,75 @@ class MLXSmolVLMWebServer:
         self.setup_socket_events()
     
     def load_model(self):
-        """Load the model if not already loaded."""
+        """Load the model with optimized configuration."""
         if self.model is None and not self.model_loading:
             self.model_loading = True
             try:
-                print(f"Loading model: {self.model_path}")
+                print(f"Loading optimized model: {self.model_path}")
+                
+                # Load model with MLX optimizations
                 self.model, self.processor = load(self.model_path)
                 self.config = load_config(self.model_path)
-                print("Model loaded successfully!")
+                
+                # Optimize processor for faster inference
+                # Set image resolution for speed (N=2 for 768x768, faster than default 1536x1536)
+                if hasattr(self.processor, 'image_processor'):
+                    self.processor.image_processor.size = {"longest_edge": 2 * 384}  # 768px max
+                
+                print("✅ Model loaded with optimizations!")
+                print(f"📊 Image processing size: {self.processor.image_processor.size if hasattr(self.processor, 'image_processor') else 'default'}")
                 return True
             except Exception as e:
-                print(f"Error loading model: {e}")
+                print(f"❌ Error loading model: {e}")
                 self.model_loading = False
                 return False
             finally:
                 self.model_loading = False
         return self.model is not None
+    
+    def ensure_complete_sentences(self, text: str) -> str:
+        """Ensure the response ends with complete sentences only."""
+        if not text:
+            return text
+        
+        # Common sentence endings
+        sentence_endings = ['.', '!', '?']
+        
+        # If text already ends with proper punctuation, return as is
+        if text[-1] in sentence_endings:
+            return text
+        
+        # Find the last complete sentence
+        last_complete = -1
+        for i, char in enumerate(text):
+            if char in sentence_endings:
+                # Check if this is really the end of a sentence (not an abbreviation)
+                if i + 1 < len(text) and text[i + 1] in [' ', '\n', '\t']:
+                    last_complete = i
+                elif i == len(text) - 1:  # End of text
+                    last_complete = i
+        
+        # If we found a complete sentence, truncate there
+        if last_complete > 0:
+            return text[:last_complete + 1].strip()
+        
+        # If no complete sentence found, try to end at a logical break point
+        logical_breaks = [',', ';', ':']
+        for break_char in logical_breaks:
+            last_break = text.rfind(break_char)
+            if last_break > len(text) * 0.7:  # Only if it's near the end
+                return text[:last_break].strip() + '.'
+        
+        # As last resort, find the last complete word and add a period
+        words = text.split()
+        if len(words) > 1:
+            # Remove the last word if it seems incomplete
+            last_word = words[-1]
+            if not last_word.endswith(('.', '!', '?', ',', ';', ':')):
+                words = words[:-1]
+            return ' '.join(words) + '.'
+        
+        return text
     
     def setup_routes(self):
         """Setup Flask routes."""
@@ -572,21 +655,28 @@ class MLXSmolVLMWebServer:
                 image_bytes = base64.b64decode(image_data)
                 image = Image.open(io.BytesIO(image_bytes))
                 
-                # Get parameters
-                prompt = data.get('prompt', 'Describe what you see in this image in detail.')
-                max_tokens = data.get('max_tokens', 80)
-                temperature = data.get('temperature', 0.7)
+                # Get parameters - optimized for speed
+                prompt = data.get('prompt', 'What do you see?')
+                max_tokens = data.get('max_tokens', 30)  # Reduced for faster generation
+                temperature = data.get('temperature', 0.2)  # Lower for faster, more focused responses
                 
-                # Resize image if too large
-                max_size = 512
+                # Optimize image size according to SmolVLM recommendations
+                # SmolVLM uses 384x384 patches, so we optimize for that
+                max_size = 768  # N=2 * 384 for good speed/quality balance
                 if max(image.size) > max_size:
+                    # Use LANCZOS for better quality at this resolution
                     image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                
+                print(f"📸 Image processed: {image.size} (original) -> {image.size} (processed)")
                 
                 # Use the MLX-VLM generate function directly
                 # Format prompt with image placeholder
                 formatted_prompt = f"<image>\n{prompt}"
                 
-                # Generate response
+                # Generate response with speed optimizations
+                import time
+                start_time = time.time()
+                
                 response = generate(
                     model=self.model,
                     processor=self.processor,
@@ -594,8 +684,13 @@ class MLXSmolVLMWebServer:
                     image=image,
                     verbose=False,
                     max_tokens=max_tokens,
-                    temperature=temperature
+                    temperature=temperature,
+                    repetition_penalty=1.0,  # Reduce repetition processing
+                    repetition_context_size=0  # Disable repetition context for speed
                 )
+                
+                inference_time = time.time() - start_time
+                print(f"Inference time: {inference_time:.2f}s")
                 
                 # Handle response - check if it's a tuple first
                 if isinstance(response, tuple):
@@ -610,6 +705,9 @@ class MLXSmolVLMWebServer:
                 
                 # Clean up response
                 response = response.replace("<|im_start|>", "").replace("<|im_end|>", "").strip()
+                
+                # Ensure complete sentences
+                response = self.ensure_complete_sentences(response)
                 
                 if not response:
                     response = "No response generated."
@@ -651,7 +749,7 @@ class MLXSmolVLMWebServer:
 def main():
     parser = argparse.ArgumentParser(description="MLX SmolVLM Real-time Webcam Web Server")
     parser.add_argument("--model", type=str, default="mlx-community/SmolVLM-Instruct-4bit",
-                       help="Path or HuggingFace model ID for SmolVLM model")
+                       help="Path or HuggingFace model ID for SmolVLM model. Recommended: HuggingFaceTB/SmolVLM-Instruct")
     parser.add_argument("--host", type=str, default="127.0.0.1",
                        help="Host to bind the server (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=5000,

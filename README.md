@@ -1,12 +1,19 @@
-# 🤖 MLX-VLM SmolVLM Real-time Webcam
+# 🤖 SmolVLM Real-Time Webcam Demo with MLX-VLM
 
-A real-time webcam application powered by **SmolVLM** (Small Vision Language Model) running on Apple Silicon using **MLX-VLM**. This application provides a beautiful web interface where you can analyze webcam footage in real-time using AI vision language models.
+A real-time webcam application powered by **SmolVLM** (Small Vision Language Model) running on Apple Silicon using **MLX-VLM**. This application provides a simple web interface where you can analyze webcam footage in real-time using AI vision language models(mlx-community/SmolVLM-Instruct-4bit).
+
+
+![MLX-VLM SmolVLM Demo](mlx-vlm-demo.png)
+This repository features a simple demo of real-time object detection using MLX-VLM with mlx-community/SmolVLM-Instruct-4bit, optimized for M1 MacBook Pro.
+
+For improved output quality, you can switch to SmolVLM-Instruct-8bit, though it may require a faster Apple Silicon chip for faster performance.
+
 
 ## ✨ Features
 
 - 🎥 **Real-time Webcam Analysis** - Capture and analyze webcam frames instantly
 - 🧠 **SmolVLM Integration** - Powered by efficient SmolVLM models via MLX-VLM
-- 🌐 **Web Interface** - Beautiful, responsive web UI with modern design
+- 🌐 **Web Interface** - Simple, responsive web UI with modern design
 - ⚡ **Real-time Processing** - Fast inference on Apple Silicon devices
 - 🎛️ **Customizable Settings** - Adjust prompts, temperature, tokens, and auto-analysis
 - 📱 **Mobile Friendly** - Responsive design works on various screen sizes
@@ -194,6 +201,7 @@ This project is open source. Please check individual dependencies for their resp
 - **SmolVLM**: HuggingFace's efficient vision language model
 - **MLX**: Apple's machine learning framework for Apple Silicon
 - **MLX-VLM**: MLX integration for vision language models
+- **Inspired by**: https://github.com/ngxson/smolvlm-realtime-webcam
 
 ---
 
